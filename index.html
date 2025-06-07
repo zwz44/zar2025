@@ -22,14 +22,19 @@
             background-color: rgba(0, 0, 0, 0.7);
             padding: 20px;
             border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
         
         #game-board {
             display: grid;
             grid-template-columns: repeat(10, 1fr);
             gap: 2px;
-            margin: 10px auto;
+            margin: 20px auto;
             max-width: 500px;
+            background-color: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 5px;
+            position: relative;
         }
         
         .cell {
@@ -42,14 +47,32 @@
             cursor: pointer;
             color: black;
             font-weight: bold;
+            transition: all 0.3s ease;
+            position: relative;
+            border-radius: 3px;
+            z-index: 1;
+        }
+        
+        .player1-visited {
+            background-color: #ffcccc;
+        }
+        
+        .player2-visited {
+            background-color: #ccf5f2;
         }
         
         .player1 {
             background-color: #ff6b6b;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%23d63031"/><text x="50" y="60" font-size="40" text-anchor="middle" fill="white">1</text></svg>');
+            background-size: cover;
+            color: white;
         }
         
         .player2 {
             background-color: #4ecdc4;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%230098b3"/><text x="50" y="60" font-size="40" text-anchor="middle" fill="white">2</text></svg>');
+            background-size: cover;
+            color: white;
         }
         
         .snake {
@@ -68,16 +91,37 @@
             color: white;
             border: none;
             border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
         }
         
         #dice-result {
             font-size: 24px;
             margin: 10px;
+            min-height: 36px;
         }
         
-        #multiplayer-section {
+        #timer {
+            font-size: 18px;
+            margin: 10px;
+            color: #f1c40f;
+        }
+        
+        #dice-animation {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 30px;
+            height: 30px;
+            background-color: white;
+            border-radius: 50%;
             display: none;
-            margin-top: 20px;
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(255,255,255,0.8);
         }
         
         .creator {
@@ -91,21 +135,13 @@
     <div id="game-container">
         <h1>یاری زارو مار 🐍</h1>
         <div id="dice-result">تاس: 0</div>
+        <div id="timer">کات: 10 چرکە</div>
         <div id="current-player">یاریزان: 1</div>
-        <div id="game-board"></div>
-        
-        <button id="roll-dice">تاس بیخە</button>
-        
-        <div id="multiplayer-section">
-            <button id="create-game">درووستکردنی یاری</button>
-            <button id="join-game">بەشداریکردن</button>
-            <div id="code-input" style="display: none;">
-                <input type="text" id="game-code" placeholder="کۆدی یاری">
-                <button id="submit-code">ناردن</button>
-            </div>
+        <div id="game-board">
+            <div id="dice-animation"></div>
         </div>
         
-        <button id="multiplayer-btn">یاری دوو کەسی</button>
+        <button id="roll-dice">تاس بیخە</button>
         
         <div class="creator">درووستکەری یاری / 👻AKAMS-2025</div>
     </div>
@@ -115,9 +151,10 @@
         const boardSize = 100;
         let currentPlayer = 1;
         let playerPositions = {1: 1, 2: 1};
-        let gameCode = '';
-        let isMultiplayer = false;
-        let isHost = false;
+        let visitedCells = {1: [], 2: []};
+        let timer;
+        let timeLeft = 10;
+        let isAnimating = false;
         
         // زار و مارەکان (پله و مار)
         const snakesAndLadders = {
@@ -131,6 +168,11 @@
         function createBoard() {
             const board = document.getElementById('game-board');
             board.innerHTML = '';
+            
+            // زیادکردنی ئەنیمەیشنی تاس
+            const diceAnim = document.createElement('div');
+            diceAnim.id = 'dice-animation';
+            board.appendChild(diceAnim);
             
             for (let i = boardSize; i >= 1; i--) {
                 const cell = document.createElement('div');
@@ -147,6 +189,14 @@
                     }
                 }
                 
+                // زیادکردنی ڕەنگی خانە سەیرکراوەکان
+                if (visitedCells[1].includes(i)) {
+                    cell.classList.add('player1-visited');
+                }
+                if (visitedCells[2].includes(i)) {
+                    cell.classList.add('player2-visited');
+                }
+                
                 board.appendChild(cell);
             }
             
@@ -159,17 +209,77 @@
                 cell.classList.remove('player1', 'player2');
             });
             
-            document.getElementById(`cell-${playerPositions[1]}`).classList.add('player1');
-            document.getElementById(`cell-${playerPositions[2]}`).classList.add('player2');
+            const player1Cell = document.getElementById(`cell-${playerPositions[1]}`);
+            const player2Cell = document.getElementById(`cell-${playerPositions[2]}`);
+            
+            player1Cell.classList.add('player1');
+            player2Cell.classList.add('player2');
+            
+            // زیادکردنی خانە سەیرکراوەکان
+            if (!visitedCells[1].includes(playerPositions[1])) {
+                visitedCells[1].push(playerPositions[1]);
+            }
+            if (!visitedCells[2].includes(playerPositions[2])) {
+                visitedCells[2].push(playerPositions[2]);
+            }
+        }
+        
+        // ئەنیمەیشنی جوڵەی تاس
+        async function animateDiceMovement(startCell, endCell, steps) {
+            isAnimating = true;
+            const dice = document.getElementById('dice-animation');
+            const startElem = document.getElementById(`cell-${startCell}`);
+            const endElem = document.getElementById(`cell-${endCell}`);
+            
+            const startRect = startElem.getBoundingClientRect();
+            const endRect = endElem.getBoundingClientRect();
+            
+            const boardRect = document.getElementById('game-board').getBoundingClientRect();
+            
+            // شوێنی دەستپێکردن
+            const startX = startRect.left - boardRect.left + startRect.width/2 - 15;
+            const startY = startRect.top - boardRect.top + startRect.height/2 - 15;
+            
+            // شوێنی کۆتایی
+            const endX = endRect.left - boardRect.left + endRect.width/2 - 15;
+            const endY = endRect.top - boardRect.top + endRect.height/2 - 15;
+            
+            dice.style.display = 'block';
+            dice.style.left = startX + 'px';
+            dice.style.top = startY + 'px';
+            
+            // جوڵاندنی تاس بە هێڵی راست
+            for (let i = 1; i <= steps; i++) {
+                const currentPos = startCell + i;
+                if (currentPos > boardSize) break;
+                
+                const currentElem = document.getElementById(`cell-${currentPos}`);
+                const currentRect = currentElem.getBoundingClientRect();
+                
+                const currentX = currentRect.left - boardRect.left + currentRect.width/2 - 15;
+                const currentY = currentRect.top - boardRect.top + currentRect.height/2 - 15;
+                
+                dice.style.left = currentX + 'px';
+                dice.style.top = currentY + 'px';
+                
+                // کاتەکەی بۆ بینینی باشتر
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+            
+            // چوونە ناو خانەی کۆتایی
+            dice.style.left = endX + 'px';
+            dice.style.top = endY + 'px';
+            
+            await new Promise(resolve => setTimeout(resolve, 500));
+            dice.style.display = 'none';
+            isAnimating = false;
         }
         
         // تاس خەڵکاندن
         function rollDice() {
-            if (isMultiplayer && ((isHost && currentPlayer === 2) || (!isHost && currentPlayer === 1))) {
-                alert('یاریزانی بەرامبەر دەبێت تاس بخات!');
-                return;
-            }
+            if (isAnimating) return;
             
+            clearInterval(timer);
             const dice = Math.floor(Math.random() * 6) + 1;
             document.getElementById('dice-result').textContent = `تاس: ${dice}`;
             
@@ -177,8 +287,12 @@
         }
         
         // جوڵاندنی یاریزان
-        function movePlayer(player, steps) {
-            let newPosition = playerPositions[player] + steps;
+        async function movePlayer(player, steps) {
+            const startPosition = playerPositions[player];
+            let newPosition = startPosition + steps;
+            
+            // ئەنیمەیشنی جوڵەی تاس
+            await animateDiceMovement(startPosition, newPosition > boardSize ? boardSize : newPosition, steps);
             
             if (newPosition >= boardSize) {
                 alert(`یاریزانی ${player} بردیەوە!`);
@@ -199,53 +313,50 @@
             playerPositions[player] = newPosition;
             updatePlayerPositions();
             
+            // گۆڕینی یاریزان و دەستپێکردنی کاتژمێر
             currentPlayer = currentPlayer === 1 ? 2 : 1;
             document.getElementById('current-player').textContent = `یاریزان: ${currentPlayer}`;
+            
+            startTimer();
         }
         
-        // ڕێکخستنی یاری دوو کەسی
-        function setupMultiplayer() {
-            document.getElementById('multiplayer-section').style.display = 'block';
-            document.getElementById('multiplayer-btn').style.display = 'none';
+        // دەستپێکردنی کاتژمێر
+        function startTimer() {
+            timeLeft = 10;
+            document.getElementById('timer').textContent = `کات: ${timeLeft} چرکە`;
             
-            document.getElementById('create-game').addEventListener('click', () => {
-                isMultiplayer = true;
-                isHost = true;
-                gameCode = Math.random().toString(36).substr(2, 5).toUpperCase();
-                alert(`کۆدی یاری: ${gameCode}\nئەم کۆدە بە هاوڕێکەت بدە.`);
-            });
-            
-            document.getElementById('join-game').addEventListener('click', () => {
-                document.getElementById('code-input').style.display = 'block';
-            });
-            
-            document.getElementById('submit-code').addEventListener('click', () => {
-                gameCode = document.getElementById('game-code').value;
-                if (gameCode.length === 5) {
-                    isMultiplayer = true;
-                    isHost = false;
-                    alert(`بەشداریت کرد لە یاری ${gameCode}`);
-                } else {
-                    alert('کۆد دەبێت 5 پیت بێت!');
+            clearInterval(timer);
+            timer = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer').textContent = `کات: ${timeLeft} چرکە`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    rollDice(); // ئۆتۆماتیک تاس هەڵدەدات
                 }
-            });
+            }, 1000);
         }
         
         // ڕێکخستنەوەی یاری
         function resetGame() {
             playerPositions = {1: 1, 2: 1};
+            visitedCells = {1: [], 2: []};
             currentPlayer = 1;
-            updatePlayerPositions();
+            clearInterval(timer);
+            timeLeft = 10;
+            document.getElementById('timer').textContent = `کات: ${timeLeft} چرکە`;
             document.getElementById('dice-result').textContent = 'تاس: 0';
             document.getElementById('current-player').textContent = 'یاریزان: 1';
+            createBoard();
+            startTimer();
         }
         
         // دەستپێکردنی یاری
         document.addEventListener('DOMContentLoaded', () => {
             createBoard();
+            startTimer();
             
             document.getElementById('roll-dice').addEventListener('click', rollDice);
-            document.getElementById('multiplayer-btn').addEventListener('click', setupMultiplayer);
         });
     </script>
 </body>
