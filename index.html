@@ -3,296 +3,250 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>یاری مار - AKAMS-2025</title>
+    <title>یاری زارو مار - AKAMS-2025</title>
     <style>
-        @font-face {
-            font-family: 'KurdishFont';
-            src: url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu&display=swap');
-        }
-        
         body {
-            font-family: 'KurdishFont', 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
             text-align: center;
             background: url('https://i.ibb.co/8LN5nydZ/file-00000000b1cc61f78e7f93df9442c5c4.png') no-repeat center center fixed;
             background-size: cover;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             color: white;
             text-shadow: 2px 2px 4px #000;
         }
         
         #game-container {
-            margin: 20px auto;
-            width: 420px;
+            max-width: 100%;
+            margin: 0 auto;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
         }
         
         #game-board {
-            background-color: rgba(0, 0, 0, 0.7);
-            border: 3px solid #333;
-            border-radius: 10px;
-            display: block;
-            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            margin: 10px auto;
+            max-width: 500px;
         }
         
-        #score {
+        .cell {
+            aspect-ratio: 1/1;
+            background-color: rgba(221, 221, 221, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: pointer;
+            color: black;
+            font-weight: bold;
+        }
+        
+        .player1 {
+            background-color: #ff6b6b;
+        }
+        
+        .player2 {
+            background-color: #4ecdc4;
+        }
+        
+        .snake {
+            background-color: #2ecc71;
+        }
+        
+        .ladder {
+            background-color: #f39c12;
+        }
+        
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        
+        #dice-result {
             font-size: 24px;
             margin: 10px;
         }
         
-        #controls {
-            margin: 20px;
-        }
-        
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 5px;
-            font-family: 'KurdishFont', 'Arial', sans-serif;
-        }
-        
-        button:hover {
-            background-color: #45a049;
-        }
-        
-        #multiplayer-controls {
+        #multiplayer-section {
             display: none;
             margin-top: 20px;
         }
         
-        input {
-            padding: 8px;
-            font-size: 16px;
-            margin: 5px;
+        .creator {
+            margin-top: 20px;
+            font-style: italic;
+            color: #ccc;
         }
     </style>
 </head>
 <body>
-    <h1>یاری مار 🐍</h1>
     <div id="game-container">
-        <div id="score">خاڵ: <span id="score-value">0</span></div>
-        <canvas id="game-board" width="400" height="400"></canvas>
+        <h1>یاری زارو مار 🐍</h1>
+        <div id="dice-result">تاس: 0</div>
+        <div id="current-player">یاریزان: 1</div>
+        <div id="game-board"></div>
         
-        <div id="controls">
-            <button id="start-btn">دەستپێکردن</button>
-            <button id="multiplayer-btn">یاری دوو کەسی</button>
-        </div>
+        <button id="roll-dice">تاس بیخە</button>
         
-        <div id="multiplayer-controls">
+        <div id="multiplayer-section">
             <button id="create-game">درووستکردنی یاری</button>
             <button id="join-game">بەشداریکردن</button>
-            <div id="code-section" style="display: none;">
-                <p>کۆدی یاری: <strong id="game-code"></strong></p>
-                <input type="text" id="input-code" placeholder="کۆدی یاری بنووسە">
+            <div id="code-input" style="display: none;">
+                <input type="text" id="game-code" placeholder="کۆدی یاری">
                 <button id="submit-code">ناردن</button>
             </div>
         </div>
+        
+        <button id="multiplayer-btn">یاری دوو کەسی</button>
+        
+        <div class="creator">درووستکەری یاری / 👻AKAMS-2025</div>
     </div>
 
     <script>
-        // ڕەگەزنامەی یاریزان
-        const canvas = document.getElementById('game-board');
-        const ctx = canvas.getContext('2d');
-        const scoreElement = document.getElementById('score-value');
-        
         // گۆڕاوەکانی یاری
-        let snake = [];
-        let food = {};
-        let direction = 'right';
-        let gameInterval;
-        let score = 0;
-        let gridSize = 20;
-        let tileCount = 20;
-        let isMultiplayer = false;
+        const boardSize = 100;
+        let currentPlayer = 1;
+        let playerPositions = {1: 1, 2: 1};
         let gameCode = '';
-        let playerRole = '';
+        let isMultiplayer = false;
+        let isHost = false;
         
-        // دەستپێکردنی یاری
-        function initGame() {
-            snake = [
-                {x: 10, y: 10}
-            ];
-            
-            generateFood();
-            score = 0;
-            scoreElement.textContent = score;
-            direction = 'right';
-            
-            if (gameInterval) {
-                clearInterval(gameInterval);
-            }
-            
-            gameInterval = setInterval(gameLoop, 100);
-        }
+        // زار و مارەکان (پله و مار)
+        const snakesAndLadders = {
+            // مارەکان (زار)
+            16: 6, 47: 26, 49: 11, 56: 53, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 98: 78,
+            // پلهکان (زار)
+            4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 51: 67, 63: 81, 71: 91
+        };
         
-        // درووستکردنی خۆراک
-        function generateFood() {
-            food = {
-                x: Math.floor(Math.random() * tileCount),
-                y: Math.floor(Math.random() * tileCount)
-            };
+        // درووستکردنی تەختەی یاری
+        function createBoard() {
+            const board = document.getElementById('game-board');
+            board.innerHTML = '';
             
-            // دڵنیابوونەوە لەوەی خۆراک لەسەر مار نەکەوێت
-            for (let i = 0; i < snake.length; i++) {
-                if (snake[i].x === food.x && snake[i].y === food.y) {
-                    generateFood();
-                    return;
+            for (let i = boardSize; i >= 1; i--) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.id = `cell-${i}`;
+                cell.textContent = i;
+                
+                if (snakesAndLadders[i]) {
+                    const destination = snakesAndLadders[i];
+                    if (destination < i) {
+                        cell.classList.add('snake');
+                    } else {
+                        cell.classList.add('ladder');
+                    }
                 }
+                
+                board.appendChild(cell);
             }
+            
+            updatePlayerPositions();
         }
         
-        // لووپی سەرەکی یاری
-        function gameLoop() {
-            // جوڵاندنی مار
-            const head = {x: snake[0].x, y: snake[0].y};
+        // نوێکردنەوەی شوێنی یاریزانەکان
+        function updatePlayerPositions() {
+            document.querySelectorAll('.cell').forEach(cell => {
+                cell.classList.remove('player1', 'player2');
+            });
             
-            switch (direction) {
-                case 'up':
-                    head.y--;
-                    break;
-                case 'down':
-                    head.y++;
-                    break;
-                case 'left':
-                    head.x--;
-                    break;
-                case 'right':
-                    head.x++;
-                    break;
-            }
-            
-            // پشکنینی بەرەو دیوار
-            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
-                gameOver();
+            document.getElementById(`cell-${playerPositions[1]}`).classList.add('player1');
+            document.getElementById(`cell-${playerPositions[2]}`).classList.add('player2');
+        }
+        
+        // تاس خەڵکاندن
+        function rollDice() {
+            if (isMultiplayer && ((isHost && currentPlayer === 2) || (!isHost && currentPlayer === 1))) {
+                alert('یاریزانی بەرامبەر دەبێت تاس بخات!');
                 return;
             }
             
-            // پشکنینی بەرەو خۆی
-            for (let i = 0; i < snake.length; i++) {
-                if (head.x === snake[i].x && head.y === snake[i].y) {
-                    gameOver();
-                    return;
-                }
-            }
+            const dice = Math.floor(Math.random() * 6) + 1;
+            document.getElementById('dice-result').textContent = `تاس: ${dice}`;
             
-            // زیادکردنی سەرەوە
-            snake.unshift(head);
-            
-            // پشکنینی خۆراک
-            if (head.x === food.x && head.y === food.y) {
-                score++;
-                scoreElement.textContent = score;
-                generateFood();
-            } else {
-                // لابردنی کلکی ئەگەر خۆراک نەخواردبێت
-                snake.pop();
-            }
-            
-            // وێنەکێشان
-            drawGame();
+            movePlayer(currentPlayer, dice);
         }
         
-        // وێنەکێشانی یاری
-        function drawGame() {
-            // پاککردنەوەی تەختە
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // جوڵاندنی یاریزان
+        function movePlayer(player, steps) {
+            let newPosition = playerPositions[player] + steps;
             
-            // کێشانی مار
-            ctx.fillStyle = 'green';
-            for (let i = 0; i < snake.length; i++) {
-                ctx.fillRect(
-                    snake[i].x * gridSize, 
-                    snake[i].y * gridSize, 
-                    gridSize - 2, 
-                    gridSize - 2
-                );
+            if (newPosition >= boardSize) {
+                alert(`یاریزانی ${player} بردیەوە!`);
+                resetGame();
+                return;
             }
             
-            // کێشانی خۆراک
-            ctx.fillStyle = 'red';
-            ctx.fillRect(
-                food.x * gridSize, 
-                food.y * gridSize, 
-                gridSize - 2, 
-                gridSize - 2
-            );
-        }
-        
-        // کۆتایی یاری
-        function gameOver() {
-            clearInterval(gameInterval);
-            alert('یاریەکە تەواو بوو! خاڵەکەت: ' + score);
-        }
-        
-        // فرمانەکانی کیبۆرد
-        document.addEventListener('keydown', function(event) {
-            switch(event.key) {
-                case 'ArrowUp':
-                    if (direction !== 'down') direction = 'up';
-                    break;
-                case 'ArrowDown':
-                    if (direction !== 'up') direction = 'down';
-                    break;
-                case 'ArrowLeft':
-                    if (direction !== 'right') direction = 'left';
-                    break;
-                case 'ArrowRight':
-                    if (direction !== 'left') direction = 'right';
-                    break;
-            }
-        });
-        
-        // دووگمەی دەستپێکردن
-        document.getElementById('start-btn').addEventListener('click', function() {
-            isMultiplayer = false;
-            document.getElementById('multiplayer-controls').style.display = 'none';
-            initGame();
-        });
-        
-        // دووگمەی دوو کەسی
-        document.getElementById('multiplayer-btn').addEventListener('click', function() {
-            document.getElementById('multiplayer-controls').style.display = 'block';
-        });
-        
-        // درووستکردنی یاری دوو کەسی
-        document.getElementById('create-game').addEventListener('click', function() {
-            isMultiplayer = true;
-            playerRole = 'host';
-            gameCode = Math.random().toString(36).substr(2, 5).toUpperCase();
-            document.getElementById('code-section').style.display = 'block';
-            document.getElementById('game-code').textContent = gameCode;
-            alert('یاری دوو کەسی درووستکرا! کۆد: ' + gameCode + '\nئەم کۆدە بە هاوڕێکەت بدە.');
-        });
-        
-        // بەشداریکردن لە یاری
-        document.getElementById('join-game').addEventListener('click', function() {
-            isMultiplayer = true;
-            playerRole = 'guest';
-            document.getElementById('code-section').style.display = 'block';
-        });
-        
-        // ناردنی کۆد
-        document.getElementById('submit-code').addEventListener('click', function() {
-            if (playerRole === 'guest') {
-                gameCode = document.getElementById('input-code').value;
-                if (gameCode.length === 5) {
-                    alert('بە سەرکەوتوویی بەشداریت کرد لە یاری! کۆد: ' + gameCode);
-                    initGame();
+            if (snakesAndLadders[newPosition]) {
+                const destination = snakesAndLadders[newPosition];
+                if (destination < newPosition) {
+                    alert(`مارە! یاریزانی ${player} دەچێتە خوارەوە لە ${newPosition} بۆ ${destination}`);
                 } else {
-                    alert('تکایە کۆدێکی دروست بنووسە (5 پیت)');
+                    alert(`پلە! یاریزانی ${player} دەچێتە سەرەوە لە ${newPosition} بۆ ${destination}`);
                 }
+                newPosition = destination;
             }
-        });
+            
+            playerPositions[player] = newPosition;
+            updatePlayerPositions();
+            
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            document.getElementById('current-player').textContent = `یاریزان: ${currentPlayer}`;
+        }
         
-        // دەستپێکردنی یاری بە شێوەیەکی خۆکار
-        window.onload = function() {
-            drawGame();
-        };
+        // ڕێکخستنی یاری دوو کەسی
+        function setupMultiplayer() {
+            document.getElementById('multiplayer-section').style.display = 'block';
+            document.getElementById('multiplayer-btn').style.display = 'none';
+            
+            document.getElementById('create-game').addEventListener('click', () => {
+                isMultiplayer = true;
+                isHost = true;
+                gameCode = Math.random().toString(36).substr(2, 5).toUpperCase();
+                alert(`کۆدی یاری: ${gameCode}\nئەم کۆدە بە هاوڕێکەت بدە.`);
+            });
+            
+            document.getElementById('join-game').addEventListener('click', () => {
+                document.getElementById('code-input').style.display = 'block';
+            });
+            
+            document.getElementById('submit-code').addEventListener('click', () => {
+                gameCode = document.getElementById('game-code').value;
+                if (gameCode.length === 5) {
+                    isMultiplayer = true;
+                    isHost = false;
+                    alert(`بەشداریت کرد لە یاری ${gameCode}`);
+                } else {
+                    alert('کۆد دەبێت 5 پیت بێت!');
+                }
+            });
+        }
+        
+        // ڕێکخستنەوەی یاری
+        function resetGame() {
+            playerPositions = {1: 1, 2: 1};
+            currentPlayer = 1;
+            updatePlayerPositions();
+            document.getElementById('dice-result').textContent = 'تاس: 0';
+            document.getElementById('current-player').textContent = 'یاریزان: 1';
+        }
+        
+        // دەستپێکردنی یاری
+        document.addEventListener('DOMContentLoaded', () => {
+            createBoard();
+            
+            document.getElementById('roll-dice').addEventListener('click', rollDice);
+            document.getElementById('multiplayer-btn').addEventListener('click', setupMultiplayer);
+        });
     </script>
 </body>
 </html>
