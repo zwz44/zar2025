@@ -123,6 +123,22 @@
             transition: all 0.5s ease;
         }
         
+        #invite-section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 8px;
+        }
+        
+        #invite-link {
+            background-color: rgba(0,0,0,0.5);
+            padding: 8px 15px;
+            border-radius: 5px;
+            word-break: break-all;
+            display: inline-block;
+            margin: 10px 0;
+        }
+        
         .creator {
             margin-top: 20px;
             font-style: italic;
@@ -133,6 +149,17 @@
 <body>
     <div id="game-container">
         <h1>یاری زارو مار 🐍</h1>
+        
+        <div id="invite-section">
+            <h3>هاوڕێت بانگهێشت بکە</h3>
+            <button id="create-invite">درووستکردنی لینکی بانگهێشت</button>
+            <div id="invite-link-container" style="display: none;">
+                <p>لینکی بانگهێشت:</p>
+                <div id="invite-link"></div>
+                <button id="copy-invite">لینک کۆپی بکە</button>
+            </div>
+        </div>
+        
         <div id="dice-result">تاس: 0</div>
         <div id="timer">کات: 10 چرکە</div>
         <div id="current-player">یاریزان: 1</div>
@@ -152,6 +179,8 @@
         let timer;
         let timeLeft = 10;
         let isAnimating = false;
+        let gameId = null;
+        let isHost = false;
         
         // زار و مارەکان (پله و مار)
         const snakesAndLadders = {
@@ -342,12 +371,50 @@
             startTimer();
         }
         
+        // درووستکردنی لینکی بانگهێشت
+        function createInviteLink() {
+            // لە ڕاستیدا ئەمە پێویستە بە سێرڤەر کاربکات، بەڵام لێرەدا بە شێوەیەکی نمونەیی نمایش دەکەین
+            gameId = Math.random().toString(36).substring(2, 8);
+            const inviteLink = `${window.location.href}?join=${gameId}`;
+            
+            document.getElementById('invite-link').textContent = inviteLink;
+            document.getElementById('invite-link-container').style.display = 'block';
+            isHost = true;
+            
+            // لە ڕاستیدا ئەمە پێویستە بە سێرڤەر نێردرێت
+            console.log(`یاری نوێ درووستکرا: ${gameId}`);
+        }
+        
+        // کۆپی کردنی لینکی بانگهێشت
+        function copyInviteLink() {
+            const inviteLink = document.getElementById('invite-link').textContent;
+            navigator.clipboard.writeText(inviteLink).then(() => {
+                alert('لینک کۆپی کراوە!');
+            });
+        }
+        
+        // پشکنینی لینکی بانگهێشت لە URL
+        function checkInviteFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            const joinId = params.get('join');
+            
+            if (joinId) {
+                // لە ڕاستیدا ئەمە پێویستە بە سێرڤەر کاربکات
+                alert(`پەیوەندیت پێوەکراوە بە یاری ${joinId}`);
+                gameId = joinId;
+                isHost = false;
+            }
+        }
+        
         // دەستپێکردنی یاری
         document.addEventListener('DOMContentLoaded', () => {
             createBoard();
             startTimer();
+            checkInviteFromURL();
             
             document.getElementById('roll-dice').addEventListener('click', rollDice);
+            document.getElementById('create-invite').addEventListener('click', createInviteLink);
+            document.getElementById('copy-invite').addEventListener('click', copyInviteLink);
         });
     </script>
 </body>
