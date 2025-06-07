@@ -129,6 +129,32 @@
             font-style: italic;
             color: #ccc;
         }
+        
+        #multiplayer-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: rgba(0,0,0,0.5);
+            border-radius: 8px;
+        }
+        
+        #code-input {
+            margin-top: 10px;
+        }
+        
+        #game-code {
+            padding: 8px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: none;
+            width: 150px;
+            text-align: center;
+        }
+        
+        #game-status {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #2ecc71;
+        }
     </style>
 </head>
 <body>
@@ -143,6 +169,18 @@
         
         <button id="roll-dice">تاس بیخە</button>
         
+        <div id="multiplayer-section">
+            <div id="game-status"></div>
+            <button id="create-game">درووستکردنی یاری</button>
+            <button id="join-game">بەشداریکردن</button>
+            <div id="code-input" style="display: none;">
+                <input type="text" id="game-code" placeholder="کۆدی یاری" maxlength="5">
+                <button id="submit-code">ناردن</button>
+            </div>
+        </div>
+        
+        <button id="multiplayer-btn" style="display: none;">یاری دوو کەسی</button>
+        
         <div class="creator">درووستکەری یاری / 👻AKAMS-2025</div>
     </div>
 
@@ -155,6 +193,10 @@
         let timer;
         let timeLeft = 10;
         let isAnimating = false;
+        let gameCode = '';
+        let isMultiplayer = false;
+        let isHost = false;
+        let peerConnection;
         
         // زار و مارەکان (پله و مار)
         const snakesAndLadders = {
@@ -279,9 +321,24 @@
         function rollDice() {
             if (isAnimating) return;
             
+            // لە یاری دوو کەسیدا تەنیا کاتێک دەتوانیت تاس بخەیت کە نۆبتتە
+            if (isMultiplayer && ((isHost && currentPlayer === 2) || (!isHost && currentPlayer === 1))) {
+                alert('نۆبت تۆ نییە! چاوەڕێبە نۆبتت بێت.');
+                return;
+            }
+            
             clearInterval(timer);
             const dice = Math.floor(Math.random() * 6) + 1;
             document.getElementById('dice-result').textContent = `تاس: ${dice}`;
+            
+            // لە یاری دوو کەسیدا، ئەنجامی تاس نێردرێت بۆ یاریزانی تر
+            if (isMultiplayer) {
+                sendGameData({
+                    type: 'dice-roll',
+                    value: dice,
+                    player: currentPlayer
+                });
+            }
             
             movePlayer(currentPlayer, dice);
         }
@@ -296,6 +353,15 @@
             
             if (newPosition >= boardSize) {
                 alert(`یاریزانی ${player} بردیەوە!`);
+                
+                // لە یاری دوو کەسیدا، بردنەوە نێردرێت بۆ یاریزانی تر
+                if (isMultiplayer) {
+                    sendGameData({
+                        type: 'game-over',
+                        winner: player
+                    });
+                }
+                
                 resetGame();
                 return;
             }
@@ -312,6 +378,15 @@
             
             playerPositions[player] = newPosition;
             updatePlayerPositions();
+            
+            // لە یاری دوو کەسیدا، شوێنی نوێی یاریزان نێردرێت بۆ یاریزانی تر
+            if (isMultiplayer) {
+                sendGameData({
+                    type: 'position-update',
+                    positions: playerPositions,
+                    currentPlayer: currentPlayer
+                });
+            }
             
             // گۆڕینی یاریزان و دەستپێکردنی کاتژمێر
             currentPlayer = currentPlayer === 1 ? 2 : 1;
@@ -332,9 +407,130 @@
                 
                 if (timeLeft <= 0) {
                     clearInterval(timer);
-                    rollDice(); // ئۆتۆماتیک تاس هەڵدەدات
+                    if (!isMultiplayer) {
+                        rollDice(); // ئۆتۆماتیک تاس هەڵدەدات
+                    }
                 }
             }, 1000);
+        }
+        
+        // درووستکردنی کۆدی یاری
+        function generateGameCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let result = '';
+            for (let i = 0; i < 5; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+        
+        // ناردنی زانیاری یاری (لە یاری دوو کەسیدا)
+        function sendGameData(data) {
+            // لێرەدا دەبێت پەیوەندی ڕاستەقینە بکەیت بە سێرڤەر یان WebRTC
+            // بۆ نموونە، بەکارهێنانی WebSocket
+            console.log('ناردنی زانیاری یاری:', data);
+            
+            // لەم نموونەیە، بە شێوەیەکی سادە لە localStorage بەکاری دەهێنین
+            // بۆ نیشاندان! لە وێبسایتێکی ڕاستەقینە دەبێت WebSocket بەکاربهێنیت
+            if (isMultiplayer) {
+                localStorage.setItem('snake-game-data', JSON.stringify(data));
+            }
+        }
+        
+        // چاودێریکردنی زانیاری یاری (لە یاری دوو کەسیدا)
+        function watchGameData() {
+            // لێرەدا چاودێری دەکەیت بۆ زانیاری نوێ لە یاریزانی تر
+            setInterval(() => {
+                const data = localStorage.getItem('snake-game-data');
+                if (data) {
+                    const gameData = JSON.parse(data);
+                    processGameData(gameData);
+                    localStorage.removeItem('snake-game-data');
+                }
+            }, 1000);
+        }
+        
+        // پرۆسەکردنی زانیاری یاری (لە یاری دوو کەسیدا)
+        function processGameData(data) {
+            switch (data.type) {
+                case 'dice-roll':
+                    if (data.player !== currentPlayer) {
+                        document.getElementById('dice-result').textContent = `تاس: ${data.value}`;
+                        movePlayer(data.player, data.value);
+                    }
+                    break;
+                
+                case 'position-update':
+                    playerPositions = data.positions;
+                    currentPlayer = data.currentPlayer;
+                    updatePlayerPositions();
+                    document.getElementById('current-player').textContent = `یاریزان: ${currentPlayer}`;
+                    startTimer();
+                    break;
+                
+                case 'game-over':
+                    alert(`یاریزانی ${data.winner} بردیەوە!`);
+                    resetGame();
+                    break;
+                
+                case 'join-success':
+                    document.getElementById('game-status').textContent = 'بە سەرکەوتوویی بەسترا بە یاریەکە!';
+                    document.getElementById('code-input').style.display = 'none';
+                    isMultiplayer = true;
+                    isHost = false;
+                    break;
+            }
+        }
+        
+        // ڕێکخستنی یاری دوو کەسی
+        function setupMultiplayer() {
+            document.getElementById('multiplayer-section').style.display = 'block';
+            document.getElementById('multiplayer-btn').style.display = 'none';
+            
+            // چاودێریکردنی زانیاری یاری
+            watchGameData();
+            
+            // دوگمەی درووستکردنی یاری
+            document.getElementById('create-game').addEventListener('click', () => {
+                isMultiplayer = true;
+                isHost = true;
+                gameCode = generateGameCode();
+                document.getElementById('game-status').textContent = `کۆدی یاری: ${gameCode}`;
+                alert(`کۆدی یاری: ${gameCode}\nئەم کۆدە بە هاوڕێکەت بدە.`);
+                
+                // دەستپێکردنی یاری دوو کەسی
+                sendGameData({
+                    type: 'game-created',
+                    code: gameCode
+                });
+            });
+            
+            // دوگمەی بەشداریکردن
+            document.getElementById('join-game').addEventListener('click', () => {
+                document.getElementById('code-input').style.display = 'block';
+            });
+            
+            // دوگمەی ناردنی کۆد
+            document.getElementById('submit-code').addEventListener('click', () => {
+                gameCode = document.getElementById('game-code').value.trim().toUpperCase();
+                if (gameCode.length === 5) {
+                    // لێرەدا دەبێت پەیوەندی بکەیت بە یاریەکە
+                    // لەم نموونەیە، بە شێوەیەکی سادە نیشانی دەدەین
+                    sendGameData({
+                        type: 'join-request',
+                        code: gameCode
+                    });
+                    
+                    // وەڵامی سەرکەوتوویی (لە ڕاستیدا لە سێرڤەرەوە دێت)
+                    setTimeout(() => {
+                        processGameData({
+                            type: 'join-success'
+                        });
+                    }, 1000);
+                } else {
+                    alert('کۆد دەبێت 5 پیت بێت!');
+                }
+            });
         }
         
         // ڕێکخستنەوەی یاری
@@ -357,6 +553,7 @@
             startTimer();
             
             document.getElementById('roll-dice').addEventListener('click', rollDice);
+            document.getElementById('multiplayer-btn').addEventListener('click', setupMultiplayer);
         });
     </script>
 </body>
